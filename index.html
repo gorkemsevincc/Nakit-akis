@@ -5286,6 +5286,112 @@ window.renderDeftar = function() {
     }).join("");
   }
 };
+
+// ════════════════════════════════════════════════════════════
+// TRANSFER ONAY AKIŞI
+// ════════════════════════════════════════════════════════════
+
+const COLL_AYARLAR = "ayarlar";
+const COLL_TRANSFER_ONAY = "transfer_onay";
+let _transferEsik = 0; // 0 = devre dışı
+let _bekleyenTransfer = null; // geçici olarak tutulan transfer verisi
+
+// Uygulama başlangıcında eşik değerini yükle
+async function loadTransferEsik() {
+  try {
+    const snap = await getDoc(doc(db, COLL_AYARLAR, "transfer"));
+    if (snap.exists()) {
+      _transferEsik = snap.data().onayEsik || 0;
+    }
+    _transferEsikUIGuncelle();
+  } catch(e) { console.warn("Eşik yüklenemedi:", e); }
+}
+
+function _transferEsikUIGuncelle() {
+  const el = document.getElementById("transferEsikMevcut");
+  const inp = document.getElementById("transferEsikInput");
+  if (el) {
+    el.textContent = _transferEsik > 0
+      ? `Mevcut eşik: ${_transferEsik.toLocaleString("tr-TR")} ₺`
+      : "Onay akışı devre dışı (eşik = 0)";
+  }
+  if (inp && !inp.value) inp.placeholder = _transferEsik || "0";
+}
+
+window.transferEsikKaydet = async function() {
+  if (!window.hasYetki("kullaniciyonetim")) { toast("Bu ayar için yetkiniz yok.", "error"); return; }
+  const val = parseFloat(document.getElementById("transferEsikInput").value) || 0;
+  try {
+    await setDoc(doc(db, COLL_AYARLAR, "transfer"), { onayEsik: val }, { merge: true });
+    _transferEsik = val;
+    _transferEsikUIGuncelle();
+    toast(val > 0 ? `✓ Onay eşiği ${val.toLocaleString("tr-TR")} ₺ olarak ayarlandı.` : "✓ Onay akışı devre dışı bırakıldı.", "success");
+    document.getElementById("transferEsikInput").value = "";
+  } catch(e) { toast("Kayıt hatası: " + e.message, "error"); }
+};
+
+// saveTransfer'ı sarmalayan intercept — yüksek tutar → modal
+window.addEventListener("load", () => {
+  const _orijinalSaveTransfer = window.saveTransfer;
+  window.saveTransfer = async function() {
+    if (_transferEsik <= 0) { return _orijinalSaveTransfer(); }
+    const tutar = parseFloat(document.getElementById("tTutar")?.value) || 0;
+    if (tutar < _transferEsik) { return _orijinalSaveTransfer(); }
+
+    // Yüksek tutar — önce form verisini sakla, sonra modal aç
+    const tarih   = document.getElementById("tTarih").value;
+    const kaynak  = document.getElementById("tKaynak").value;
+    const hedef   = document.getElementById("tHedef").value;
+    const aciklama = document.getElementById("tAciklama")?.value?.trim() || "";
+    if (!tarih || !kaynak || !hedef || !tutar) {
+      toast("Tarih, Kaynak Kasa, Hedef Kasa ve Tutar zorunludur.", "error"); return;
+    }
+    if (kaynak === hedef) { toast("Kaynak ve hedef kasa aynı olamaz.", "error"); return; }
+
+    _bekleyenTransfer = { tarih, kaynak, hedef, tutar, aciklama };
+    const fmt2 = n => n.toLocaleString("tr-TR", { minimumFractionDigits: 2 });
+    document.getElementById("transferOnayDetay").innerHTML =
+      `<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px">
+        <span style="color:var(--text3)">Tarih:</span><span>${tarih}</span>
+        <span style="color:var(--text3)">Kaynak:</span><span>${kaynak}</span>
+        <span style="color:var(--text3)">Hedef:</span><span>${hedef}</span>
+        <span style="color:var(--text3)">Tutar:</span><span style="font-weight:700;color:var(--warning,#f59e0b);font-family:var(--mono)">${fmt2(tutar)} ₺</span>
+        ${aciklama ? `<span style="color:var(--text3)">Açıklama:</span><span>${aciklama}</span>` : ""}
+      </div>`;
+    document.getElementById("transferOnayNot").value = "";
+    document.getElementById("transferOnayModal").style.display = "flex";
+  };
+
+  window.transferOnayOnayla = async function() {
+    if (!_bekleyenTransfer) return;
+    if (!window.hasYetki("kullaniciyonetim") && !window.hasYetki("silme")) {
+      toast("Bu tutarı onaylamak için yetkiniz yok (CFO veya Genel Müdür gerekli).", "error"); return;
+    }
+    const not = document.getElementById("transferOnayNot").value.trim();
+    document.getElementById("transferOnayModal").style.display = "none";
+    try {
+      const aktor = auditAktor();
+      await addDoc(collection(db, COLL_TRANSFER_ONAY), {
+        ...(_bekleyenTransfer),
+        durum: "onaylandı",
+        onaylayanUID: aktor.uid,
+        onaylayanAd: aktor.ad,
+        onaylayanRol: aktor.rol,
+        onayNot: not,
+        zaman: serverTimestamp()
+      });
+    } catch(e) { console.warn("Onay kaydı hatası:", e); }
+    await _orijinalSaveTransfer();
+    _bekleyenTransfer = null;
+  };
+
+  window.transferOnayReddet = function() {
+    document.getElementById("transferOnayModal").style.display = "none";
+    _bekleyenTransfer = null;
+    toast("Transfer iptal edildi.", "info");
+  };
+});
+
 </script>
 
 <script>
@@ -6601,116 +6707,7 @@ window.topluKategoriKaydet = async function() {
   }
 };
 
-// ════════════════════════════════════════════════════════════
-// TRANSFER ONAY AKIŞI
-// ════════════════════════════════════════════════════════════
 
-const COLL_AYARLAR = "ayarlar";
-const COLL_TRANSFER_ONAY = "transfer_onay";
-let _transferEsik = 0; // 0 = devre dışı
-let _bekleyenTransfer = null; // geçici olarak tutulan transfer verisi
-
-// Uygulama başlangıcında eşik değerini yükle
-async function loadTransferEsik() {
-  try {
-    const snap = await getDoc(doc(db, COLL_AYARLAR, "transfer"));
-    if (snap.exists()) {
-      _transferEsik = snap.data().onayEsik || 0;
-    }
-    _transferEsikUIGuncelle();
-  } catch(e) { console.warn("Eşik yüklenemedi:", e); }
-}
-
-function _transferEsikUIGuncelle() {
-  const el = document.getElementById("transferEsikMevcut");
-  const inp = document.getElementById("transferEsikInput");
-  if (el) {
-    el.textContent = _transferEsik > 0
-      ? `Mevcut eşik: ${_transferEsik.toLocaleString("tr-TR")} ₺`
-      : "Onay akışı devre dışı (eşik = 0)";
-  }
-  if (inp && !inp.value) inp.placeholder = _transferEsik || "0";
-}
-
-window.transferEsikKaydet = async function() {
-  if (!window.hasYetki("kullaniciyonetim")) { toast("Bu ayar için yetkiniz yok.", "error"); return; }
-  const val = parseFloat(document.getElementById("transferEsikInput").value) || 0;
-  try {
-    await setDoc(doc(db, COLL_AYARLAR, "transfer"), { onayEsik: val }, { merge: true });
-    _transferEsik = val;
-    _transferEsikUIGuncelle();
-    toast(val > 0 ? `✓ Onay eşiği ${val.toLocaleString("tr-TR")} ₺ olarak ayarlandı.` : "✓ Onay akışı devre dışı bırakıldı.", "success");
-    document.getElementById("transferEsikInput").value = "";
-  } catch(e) { toast("Kayıt hatası: " + e.message, "error"); }
-};
-
-// saveTransfer'ı sarmalayan intercept — yüksek tutar → modal
-const _orijinalSaveTransfer = window.saveTransfer;
-window.saveTransfer = async function() {
-  if (_transferEsik <= 0) { return _orijinalSaveTransfer(); }
-  const tutar = parseFloat(document.getElementById("tTutar")?.value) || 0;
-  if (tutar < _transferEsik) { return _orijinalSaveTransfer(); }
-
-  // Yüksek tutar — önce form verisini sakla, sonra modal aç
-  const tarih   = document.getElementById("tTarih").value;
-  const kaynak  = document.getElementById("tKaynak").value;
-  const hedef   = document.getElementById("tHedef").value;
-  const aciklama = document.getElementById("tAciklama")?.value?.trim() || "";
-  if (!tarih || !kaynak || !hedef || !tutar) {
-    toast("Tarih, Kaynak Kasa, Hedef Kasa ve Tutar zorunludur.", "error"); return;
-  }
-  if (kaynak === hedef) { toast("Kaynak ve hedef kasa aynı olamaz.", "error"); return; }
-
-  _bekleyenTransfer = { tarih, kaynak, hedef, tutar, aciklama };
-  const fmt2 = n => n.toLocaleString("tr-TR", { minimumFractionDigits: 2 });
-  document.getElementById("transferOnayDetay").innerHTML =
-    `<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px">
-      <span style="color:var(--text3)">Tarih:</span><span>${tarih}</span>
-      <span style="color:var(--text3)">Kaynak:</span><span>${kaynak}</span>
-      <span style="color:var(--text3)">Hedef:</span><span>${hedef}</span>
-      <span style="color:var(--text3)">Tutar:</span><span style="font-weight:700;color:var(--warning,#f59e0b);font-family:var(--mono)">${fmt2(tutar)} ₺</span>
-      ${aciklama ? `<span style="color:var(--text3)">Açıklama:</span><span>${aciklama}</span>` : ""}
-    </div>`;
-  document.getElementById("transferOnayNot").value = "";
-  document.getElementById("transferOnayModal").style.display = "flex";
-};
-
-window.transferOnayOnayla = async function() {
-  if (!_bekleyenTransfer) return;
-  if (!window.hasYetki("kullaniciyonetim") && !window.hasYetki("silme")) {
-    toast("Bu tutarı onaylamak için yetkiniz yok (CFO veya Genel Müdür gerekli).", "error"); return;
-  }
-  const not = document.getElementById("transferOnayNot").value.trim();
-  document.getElementById("transferOnayModal").style.display = "none";
-  // Onay kaydı
-  try {
-    const aktor = auditAktor();
-    await addDoc(collection(db, COLL_TRANSFER_ONAY), {
-      ...(_bekleyenTransfer),
-      durum: "onaylandı",
-      onaylayanUID: aktor.uid,
-      onaylayanAd: aktor.ad,
-      onaylayanRol: aktor.rol,
-      onayNot: not,
-      zaman: serverTimestamp()
-    });
-  } catch(e) { console.warn("Onay kaydı hatası:", e); }
-  // Asıl transferi kaydet — form zaten dolu, orijinal fonksiyonu çağır
-  await _orijinalSaveTransfer();
-  _bekleyenTransfer = null;
-};
-
-window.transferOnayReddet = function() {
-  document.getElementById("transferOnayModal").style.display = "none";
-  _bekleyenTransfer = null;
-  toast("Transfer iptal edildi.", "info");
-};
-
-// Transfer eşik değeri onAuthStateChanged içinde loadTransferEsik() ile yükleniyor.
-
-// ════════════════════════════════════════════════════════════
-// FIRESTORE AYARLAR DOC — setDoc import gerektirir, yukarıda mevcut
-// ════════════════════════════════════════════════════════════
 </script>
 
 </body>
