@@ -1774,9 +1774,9 @@
           <div>
             <label style="display:block;font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.6px">Rol</label>
             <select id="kulEkleRol" style="width:100%">
-              <option>Ön Muhasebe</option>
+              <option>On Muhasebe</option>
               <option>Muhasebe</option>
-              <option>Genel Müdür</option>
+              <option>Genel Mudur</option>
               <option>CFO</option>
             </select>
           </div>
@@ -1794,7 +1794,7 @@
           <div style="font-size:12px;color:var(--text3)">Tüm sayfalar, silme, bütçe, kullanıcı yönetimi</div>
         </div>
         <div class="card" style="padding:14px;border-left:3px solid #10b981">
-          <div style="font-weight:700;color:#10b981;margin-bottom:4px">Genel Müdür</div>
+          <div style="font-weight:700;color:#10b981;margin-bottom:4px">Genel Mudur</div>
           <div style="font-size:12px;color:var(--text3)">Tüm sayfalar, silme, bütçe, kullanıcı yönetimi</div>
         </div>
         <div class="card" style="padding:14px;border-left:3px solid #f59e0b">
@@ -1802,7 +1802,7 @@
           <div style="font-size:12px;color:var(--text3)">Çoğu sayfa, silme yetkisi var, bütçe/kullanıcı yok</div>
         </div>
         <div class="card" style="padding:14px;border-left:3px solid #94a3b8">
-          <div style="font-weight:700;color:#94a3b8;margin-bottom:4px">Ön Muhasebe</div>
+          <div style="font-weight:700;color:#94a3b8;margin-bottom:4px">On Muhasebe</div>
           <div style="font-size:12px;color:var(--text3)">Temel işlemler, silme ve raporlama yok</div>
         </div>
       </div>
@@ -1987,7 +1987,7 @@ const ROL_YETKILER = {
     silme: true, butce: true, yonetim: true, kullaniciyonetim: true,
     islemEkle: true, transfer: true
   },
-  "Genel Müdür": {
+  "Genel Mudur": {
     sayfalar: ["ozet","acilis","islemler","yeni","transfer","ekstresi","acik","aylik","rapor","kdv",
                "bilanco","masrafrapor","karsilastir","nakittahmini","butce","tekrar","notlar",
                "mutabakat","audit","deftar","kullanicilar"],
@@ -2000,7 +2000,7 @@ const ROL_YETKILER = {
     silme: true, butce: false, yonetim: true, kullaniciyonetim: false,
     islemEkle: true, transfer: true
   },
-  "Ön Muhasebe": {
+  "On Muhasebe": {
     sayfalar: ["ozet","acilis","islemler","yeni","transfer","ekstresi","notlar"],
     silme: false, butce: false, yonetim: false, kullaniciyonetim: false,
     islemEkle: true, transfer: true
@@ -2016,7 +2016,7 @@ function auditAktor() {
     uid:   window.aktifKullanici.uid   || auth.currentUser?.uid   || "",
     email: window.aktifKullanici.email || auth.currentUser?.email || "",
     ad:    window.aktifKullanici.ad    || auth.currentUser?.email || "",
-    rol:   window.aktifKullanici.rol   || "Ön Muhasebe"
+    rol:   window.aktifKullanici.rol   || "On Muhasebe"
   };
 }
 
@@ -2026,31 +2026,31 @@ async function fetchKullaniciRol(user) {
     const snap = await getDoc(doc(db, COLL_KULLANICILAR, user.uid));
     if (snap.exists()) {
       const data = snap.data();
-      window.aktifKullanici = { uid: user.uid, email: user.email, ad: data.ad || user.email, rol: data.rol || "Ön Muhasebe", aktif: data.aktif !== false };
+      window.aktifKullanici = { uid: user.uid, email: user.email, ad: data.ad || user.email, rol: data.rol || "On Muhasebe", aktif: data.aktif !== false };
       if (window.aktifKullanici.aktif === false) {
         toast("Hesabınız devre dışı bırakılmıştır. Yöneticinizle iletişime geçin.", "error");
         await signOut(auth);
         return;
       }
     } else {
-      // Firestore kaydı yoksa varsayılan rol: Ön Muhasebe (ilk kayıt CFO sayılır)
-      window.aktifKullanici = { uid: user.uid, email: user.email, ad: user.email, rol: "Ön Muhasebe", aktif: true };
+      // Firestore kaydı yoksa varsayılan rol: On Muhasebe (ilk kayıt CFO sayılır)
+      window.aktifKullanici = { uid: user.uid, email: user.email, ad: user.email, rol: "On Muhasebe", aktif: true };
     }
     applyRolToUI();
   } catch(e) {
     console.error("Rol çekme hatası:", e);
-    window.aktifKullanici = { uid: user.uid, email: user.email, ad: user.email, rol: "Ön Muhasebe", aktif: true };
+    window.aktifKullanici = { uid: user.uid, email: user.email, ad: user.email, rol: "On Muhasebe", aktif: true };
     applyRolToUI();
   }
 }
 
 // Rol bazlı UI uygula
 function applyRolToUI() {
-  const rol = window.aktifKullanici.rol || "Ön Muhasebe";
-  const yetki = ROL_YETKILER[rol] || ROL_YETKILER["Ön Muhasebe"];
+  const rol = window.aktifKullanici.rol || "On Muhasebe";
+  const yetki = ROL_YETKILER[rol] || ROL_YETKILER["On Muhasebe"];
 
   // Header: kullanıcı adı + rol badge
-  const rolRenkler = { "CFO":"#3b82f6","Genel Müdür":"#10b981","Muhasebe":"#f59e0b","Ön Muhasebe":"#94a3b8" };
+  const rolRenkler = { "CFO":"#3b82f6","Genel Mudur":"#10b981","Muhasebe":"#f59e0b","On Muhasebe":"#94a3b8" };
   const renk = rolRenkler[rol] || "#94a3b8";
   document.getElementById("userEmail").innerHTML =
     `<span style="color:var(--text2)">${window.aktifKullanici.ad || window.aktifKullanici.email}</span>` +
@@ -2078,8 +2078,8 @@ function applyRolToUI() {
 
 // Yetki kontrolü
 window.hasYetki = function(yetki) {
-  const rol = window.aktifKullanici.rol || "Ön Muhasebe";
-  return (ROL_YETKILER[rol] || ROL_YETKILER["Ön Muhasebe"])[yetki] === true;
+  const rol = window.aktifKullanici.rol || "On Muhasebe";
+  return (ROL_YETKILER[rol] || ROL_YETKILER["On Muhasebe"])[yetki] === true;
 };
 
 // ── ANLIKT ROL YANSIMA — kendi Firestore doc'una listener ──
@@ -2097,7 +2097,7 @@ function startKullaniciDocListening(user) {
       return;
     }
     const eskiRol = window.aktifKullanici.rol;
-    window.aktifKullanici.rol = data.rol || "Ön Muhasebe";
+    window.aktifKullanici.rol = data.rol || "On Muhasebe";
     window.aktifKullanici.ad = data.ad || user.email;
     window.aktifKullanici.aktif = data.aktif !== false;
     // Rol değiştiyse bildir ve UI'ı güncelle
@@ -3692,7 +3692,7 @@ window.renderAuditLog = async function() {
       const tipEtiket = { sil: "SİL", duzenle: "DÜZENLE", ekle: "EKLE", transfer: "TRANSFER", mutabakat: "MUTABAKAT", acilis: "AÇILIŞ", tekrar: "TEKRAR" };
       const tipBadge = `<span style="color:${tipRenk[a.tip]||"var(--text3)"};font-family:var(--mono);font-size:11px;font-weight:600">${tipEtiket[a.tip]||a.tip?.toUpperCase()||"—"}</span>`;
       const prev = a.oncekiDeger || a.yeniDeger || {};
-      const rolRenkler = { "CFO":"#3b82f6","Genel Müdür":"#10b981","Muhasebe":"#f59e0b","Ön Muhasebe":"#94a3b8" };
+      const rolRenkler = { "CFO":"#3b82f6","Genel Mudur":"#10b981","Muhasebe":"#f59e0b","On Muhasebe":"#94a3b8" };
       const rolRenk = rolRenkler[a.kullaniciRol] || "#94a3b8";
       const kullaniciHtml = a.kullaniciAd
         ? `<span style="font-weight:600">${a.kullaniciAd}</span>` +
@@ -5365,7 +5365,7 @@ window.addEventListener("load", () => {
   window.transferOnayOnayla = async function() {
     if (!_bekleyenTransfer) return;
     if (!window.hasYetki("kullaniciyonetim") && !window.hasYetki("silme")) {
-      toast("Bu tutarı onaylamak için yetkiniz yok (CFO veya Genel Müdür gerekli).", "error"); return;
+      toast("Bu tutarı onaylamak için yetkiniz yok (CFO veya Genel Mudur gerekli).", "error"); return;
     }
     const not = document.getElementById("transferOnayNot").value.trim();
     document.getElementById("transferOnayModal").style.display = "none";
@@ -5848,13 +5848,13 @@ window.renderNakitTahmini = function() {
 
 const ROL_RENKLER_KUL = {
   "CFO": { bg: "#3b82f622", border: "#3b82f644", text: "#3b82f6" },
-  "Genel Müdür": { bg: "#10b98122", border: "#10b98144", text: "#10b981" },
+  "Genel Mudur": { bg: "#10b98122", border: "#10b98144", text: "#10b981" },
   "Muhasebe": { bg: "#f59e0b22", border: "#f59e0b44", text: "#f59e0b" },
-  "Ön Muhasebe": { bg: "#94a3b822", border: "#94a3b844", text: "#94a3b8" }
+  "On Muhasebe": { bg: "#94a3b822", border: "#94a3b844", text: "#94a3b8" }
 };
 
 function rolPill(rol) {
-  const r = ROL_RENKLER_KUL[rol] || ROL_RENKLER_KUL["Ön Muhasebe"];
+  const r = ROL_RENKLER_KUL[rol] || ROL_RENKLER_KUL["On Muhasebe"];
   return `<span style="background:${r.bg};color:${r.text};border:1px solid ${r.border};border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;letter-spacing:0.4px">${rol}</span>`;
 }
 
@@ -5903,9 +5903,9 @@ window.renderKullanicilar = async function() {
         <td style="font-family:var(--mono);font-size:12px">${d.email || "—"}</td>
         <td>
           <select onchange="window.updateKullaniciRol('${uid}', this.value)" ${benim ? "disabled" : ""} style="font-size:12px;padding:4px 8px;min-width:130px">
-            <option ${d.rol==='Ön Muhasebe'?'selected':''}>Ön Muhasebe</option>
+            <option ${d.rol==='On Muhasebe'?'selected':''}>On Muhasebe</option>
             <option ${d.rol==='Muhasebe'?'selected':''}>Muhasebe</option>
-            <option ${d.rol==='Genel Müdür'?'selected':''}>Genel Müdür</option>
+            <option ${d.rol==='Genel Mudur'?'selected':''}>Genel Mudur</option>
             <option ${d.rol==='CFO'?'selected':''}>CFO</option>
           </select>
         </td>
